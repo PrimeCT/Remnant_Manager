@@ -11,7 +11,8 @@ st.set_page_config(page_title="Prime Countertops Remnant Stock", layout="wide", 
 # Load data
 @st.cache_data
 def load_data():
-    return pd.read_csv("stockremnant-test.csv")
+    df = pd.read_csv("stockremnant-test.csv")
+    return df.sort_values("name")  # Sort alphabetically by name
 
 df = load_data()
 
@@ -38,20 +39,42 @@ if page == "Customer View":
     st.title("Prime Countertops Remnant Stock")
     st.write("Browse our available remnant stock below.")
     
+    # Text search
+    search_query = st.text_input("Search by Name, Material, or Dimensions")
+    filtered_df = df.copy()
+    if search_query:
+        filtered_df = filtered_df[
+            filtered_df["name"].str.contains(search_query, case=False, na=False) |
+            filtered_df["material"].str.contains(search_query, case=False, na=False) |
+            filtered_df["dimensions"].str.contains(search_query, case=False, na=False)
+        ]
+    
     # Filter by material
-    material = st.selectbox("Filter by Material", ["All"] + df["material"].unique().tolist())
-    filtered_df = df if material == "All" else df[df["material"] == material]
+    material = st.selectbox("Filter by Material", ["All"] + sorted(df["material"].unique().tolist()))
+    
+    if material != "All":
+        filtered_df = filtered_df[filtered_df["material"] == material]
     
     for index, row in filtered_df.iterrows():
-        with st.expander(f"{row['name']} ({row['material']}) - {row['dimensions']}"):
-            st.write(f"**ID:** {row['id']}")
-            # Try to display image from Google Photos
+        with st.expander(f"{row['name']}"):
+            col1, col2, col3 = st.columns([1, 1, 2])
+            with col1:
+                st.write(f"**Color/Style:** {row['name']}")
+            with col2:
+                st.write(f"**Material:** {row['material']}")
+            with col3:
+                st.write(f"**Size:** {row['dimensions']}")
+            # Try to display image
             image_url = row["image_url"]
             try:
                 response = requests.get(image_url, timeout=5)
                 if response.status_code == 200:
-                    image = Image.open(BytesIO(response.content))
-                    st.image(image, caption=f"{row['name']} Remnant", use_column_width=True)
+                    content_type = response.headers.get('content-type', '').lower()
+                    if 'image' in content_type:
+                        image = Image.open(BytesIO(response.content))
+                        st.image(image, caption=f"{row['name']} Remnant", use_column_width=True)
+                    else:
+                        st.error(f"URL {image_url} returned non-image content (type: {content_type}). Use a direct image link.")
                 else:
                     st.error(f"Failed to load image for {row['name']}. Status code: {response.status_code}. URL: {image_url}")
             except Exception as e:
@@ -93,9 +116,9 @@ elif page == "Manager View":
         if st.button("Save Changes to Table"):
             edited_df.to_csv("stockremnant-test.csv", index=False)
             st.success("Table updated successfully!")
-            st.cache_data.clear()  # Clear cache to reload updated data
+            st.cache_data.clear()
         
-        # Update remnant size (existing feature)
+        # Update remnant size
         st.subheader("Update Remnant Size")
         id_to_update = st.number_input("Enter ID to update", min_value=1, max_value=len(df), step=1)
         new_dimensions = st.text_input("New Dimensions (e.g., 46x97)")
@@ -105,7 +128,7 @@ elif page == "Manager View":
             st.success(f"Updated dimensions for ID {id_to_update}")
             st.cache_data.clear()
         
-        # Delete remnant (existing feature)
+        # Delete remnant
         st.subheader("Delete Remnant")
         id_to_delete = st.number_input("Enter ID to delete", min_value=1, max_value=len(df), step=1)
         if st.button("Delete"):
@@ -114,13 +137,13 @@ elif page == "Manager View":
             st.success(f"Deleted remnant with ID {id_to_delete}")
             st.cache_data.clear()
         
-        # Add new remnant (existing feature)
+        # Add new remnant
         st.subheader("Add New Remnant")
         new_id = st.number_input("New ID", min_value=df['id'].max() + 1, step=1)
         new_name = st.text_input("Name")
         new_material = st.selectbox("Material", df["material"].unique().tolist())
         new_dimensions = st.text_input("Dimensions (e.g., 46x97)")
-        new_image_url = st.text_input("Image URL (Google Photos link)")
+        new_image_url = st.text_input("Image URL (Google Photos or GitHub raw link)")
         if st.button("Add Remnant"):
             new_row = pd.DataFrame({
                 "id": [new_id],
@@ -171,7 +194,7 @@ st.markdown(
         color: #ffffff;
         border-radius: 5px;
     }
-    .stSelectbox > div.Thereact-select__control, .stTextInput > div > input, .stNumberInput > div > input {
+    .stSelectbox > div > div, .stTextInput > div > input, .stNumberInput > div > input {
         color: #ffffff !important;
     }
     [data-testid="stDataFrame"] table, [data-testid="stDataEditor"] table {
@@ -185,6 +208,10 @@ st.markdown(
     [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
         background-color: #2c2f33 !important;
         color: #ffffff !important;
+    }
+    .stExpander > div > div {
+        padding: 10px;
+        background-color: #2c2f33;
     }
     </style>
     """,
