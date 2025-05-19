@@ -49,10 +49,13 @@ if page == "Customer View":
             image_url = row["image_url"]
             try:
                 response = requests.get(image_url, timeout=5)
-                image = Image.open(BytesIO(response.content))
-                st.image(image, caption=f"{row['name']} Remnant", use_column_width=True)
+                if response.status_code == 200:
+                    image = Image.open(BytesIO(response.content))
+                    st.image(image, caption=f"{row['name']} Remnant", use_column_width=True)
+                else:
+                    st.error(f"Failed to load image for {row['name']}. Status code: {response.status_code}. URL: {image_url}")
             except Exception as e:
-                st.error(f"Could not load image for {row['name']}. Check the URL or ensure it’s publicly accessible.")
+                st.error(f"Error loading image for {row['name']}: {str(e)}. URL: {image_url}")
 
 # Manager View
 elif page == "Manager View":
@@ -62,11 +65,37 @@ elif page == "Manager View":
     else:
         st.success("Access granted. Manage your remnant stock below.")
         
-        # Display current stock
+        # Display current stock with better contrast
         st.subheader("Current Stock")
-        st.dataframe(df.style.set_properties(**{'background-color': '#f8f9fa', 'border-color': '#dee2e6'}))
+        st.dataframe(df.style.set_properties(**{
+            'background-color': '#2c2f33', 
+            'color': '#ffffff', 
+            'border-color': '#40444b'
+        }).set_table_styles([{
+            'selector': 'th',
+            'props': [('background-color', '#23272a'), ('color', '#ffffff')]
+        }]))
         
-        # Update remnant size
+        # Edit the entire CSV table
+        st.subheader("Edit Stock Table")
+        edited_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            column_config={
+                "id": st.column_config.NumberColumn("ID", disabled=True),
+                "name": st.column_config.TextColumn("Name"),
+                "material": st.column_config.TextColumn("Material"),
+                "dimensions": st.column_config.TextColumn("Dimensions"),
+                "image_url": st.column_config.TextColumn("Image URL")
+            },
+            use_container_width=True
+        )
+        if st.button("Save Changes to Table"):
+            edited_df.to_csv("stockremnant-test.csv", index=False)
+            st.success("Table updated successfully!")
+            st.cache_data.clear()  # Clear cache to reload updated data
+        
+        # Update remnant size (existing feature)
         st.subheader("Update Remnant Size")
         id_to_update = st.number_input("Enter ID to update", min_value=1, max_value=len(df), step=1)
         new_dimensions = st.text_input("New Dimensions (e.g., 46x97)")
@@ -74,16 +103,18 @@ elif page == "Manager View":
             df.loc[df['id'] == id_to_update, 'dimensions'] = new_dimensions
             df.to_csv("stockremnant-test.csv", index=False)
             st.success(f"Updated dimensions for ID {id_to_update}")
+            st.cache_data.clear()
         
-        # Delete remnant
+        # Delete remnant (existing feature)
         st.subheader("Delete Remnant")
         id_to_delete = st.number_input("Enter ID to delete", min_value=1, max_value=len(df), step=1)
         if st.button("Delete"):
             df.drop(df[df['id'] == id_to_delete].index, inplace=True)
             df.to_csv("stockremnant-test.csv", index=False)
             st.success(f"Deleted remnant with ID {id_to_delete}")
+            st.cache_data.clear()
         
-        # Add new remnant (simple form)
+        # Add new remnant (existing feature)
         st.subheader("Add New Remnant")
         new_id = st.number_input("New ID", min_value=df['id'].max() + 1, step=1)
         new_name = st.text_input("Name")
@@ -101,6 +132,7 @@ elif page == "Manager View":
             df = pd.concat([df, new_row], ignore_index=True)
             df.to_csv("stockremnant-test.csv", index=False)
             st.success(f"Added new remnant with ID {new_id}")
+            st.cache_data.clear()
 
 # CSS for modern and clean look with better contrast
 st.markdown(
@@ -130,7 +162,7 @@ st.markdown(
         border: 1px solid #40444b;
         border-radius: 5px;
     }
-    .stDataFrame {
+    .stDataFrame, .stDataEditor {
         background-color: #2c2f33;
         color: #ffffff;
     }
@@ -139,7 +171,19 @@ st.markdown(
         color: #ffffff;
         border-radius: 5px;
     }
-    .stSelectbox > div > div, .stTextInput > div > input, .stNumberInput > div > input {
+    .stSelectbox > div.Thereact-select__control, .stTextInput > div > input, .stNumberInput > div > input {
+        color: #ffffff !important;
+    }
+    [data-testid="stDataFrame"] table, [data-testid="stDataEditor"] table {
+        background-color: #2c2f33 !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stDataFrame"] th, [data-testid="stDataEditor"] th {
+        background-color: #23272a !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
+        background-color: #2c2f33 !important;
         color: #ffffff !important;
     }
     </style>
