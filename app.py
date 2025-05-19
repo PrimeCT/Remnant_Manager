@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 from PIL import Image
-import base64
+import requests
+from io import BytesIO
 
 # Page configuration with logo
 st.set_page_config(page_title="Prime Countertops Remnant Stock", layout="wide", page_icon="logo.png")
@@ -22,12 +23,15 @@ def check_password():
         return True
     return False
 
-# Display logo
-logo = Image.open("logo.png")
-st.sidebar.image(logo, width=200)
+# Display logo with error handling
+try:
+    logo = Image.open("logo.png")
+    st.sidebar.image(logo, width=200)
+except FileNotFoundError:
+    st.sidebar.warning("Logo file not found. Please ensure 'logo.png' is in the directory.")
 
 # Sidebar navigation
-page = st.sidebar.radio("Navigation", ["Customer View", "Manager View"])
+page = st.sidebar.radio("Navigation", ["Customer View", "Manager View"], label_visibility="collapsed")
 
 # Customer View
 if page == "Customer View":
@@ -40,10 +44,15 @@ if page == "Customer View":
     
     for index, row in filtered_df.iterrows():
         with st.expander(f"{row['name']} ({row['material']}) - {row['dimensions']}"):
-            st.write(f"ID: {row['id']}")
-            # Display image from Google Photos
+            st.write(f"**ID:** {row['id']}")
+            # Try to display image from Google Photos
             image_url = row["image_url"]
-            st.image(image_url, caption=f"{row['name']} Remnant", use_column_width=True)
+            try:
+                response = requests.get(image_url, timeout=5)
+                image = Image.open(BytesIO(response.content))
+                st.image(image, caption=f"{row['name']} Remnant", use_column_width=True)
+            except Exception as e:
+                st.error(f"Could not load image for {row['name']}. Check the URL or ensure it’s publicly accessible.")
 
 # Manager View
 elif page == "Manager View":
@@ -55,7 +64,7 @@ elif page == "Manager View":
         
         # Display current stock
         st.subheader("Current Stock")
-        st.dataframe(df)
+        st.dataframe(df.style.set_properties(**{'background-color': '#f8f9fa', 'border-color': '#dee2e6'}))
         
         # Update remnant size
         st.subheader("Update Remnant Size")
@@ -93,25 +102,45 @@ elif page == "Manager View":
             df.to_csv("stockremnant-test.csv", index=False)
             st.success(f"Added new remnant with ID {new_id}")
 
-# CSS for modern and clean look
+# CSS for modern and clean look with better contrast
 st.markdown(
     """
     <style>
     .stApp {
-        background-color: #f0f0f0;
+        background-color: #2c2f33;
+        color: #ffffff;
         font-family: 'Arial', sans-serif;
     }
     .stSidebar {
-        background-color: #333;
-        color: #fff;
+        background-color: #23272a;
+        color: #ffffff;
     }
     .stButton>button {
         background-color: #d4af37;
         color: white;
         border-radius: 5px;
+        border: none;
     }
     .stButton>button:hover {
         background-color: #b8860b;
+    }
+    .stExpander {
+        background-color: #2c2f33;
+        color: #ffffff;
+        border: 1px solid #40444b;
+        border-radius: 5px;
+    }
+    .stDataFrame {
+        background-color: #2c2f33;
+        color: #ffffff;
+    }
+    .stSelectbox, .stTextInput, .stNumberInput {
+        background-color: #40444b;
+        color: #ffffff;
+        border-radius: 5px;
+    }
+    .stSelectbox > div > div, .stTextInput > div > input, .stNumberInput > div > input {
+        color: #ffffff !important;
     }
     </style>
     """,
